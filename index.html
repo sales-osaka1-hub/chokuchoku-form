@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>直行・直帰 事前入力</title>
+<style>
+  :root{
+    --org:#ef6c00; --org-d:#e65100; --org-l:#fff3e0; --org-ll:#fff8f0;
+    --line:#ffcc80; --txt:#3e2723; --muted:#8d6e63; --ok:#2e7d32;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+    background:var(--org-ll); color:var(--txt); -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:14px 14px 40px;}
+  header{
+    background:linear-gradient(135deg,var(--org),var(--org-d));
+    color:#fff; border-radius:14px; padding:16px 18px; margin-bottom:14px;
+    box-shadow:0 3px 10px rgba(230,81,0,.25);
+  }
+  header h1{margin:0; font-size:19px; letter-spacing:.5px;}
+  header .sub{margin-top:4px; font-size:12.5px; opacity:.95;}
+  .rule{
+    background:var(--org-l); border:1px solid var(--line); border-left:6px solid var(--org);
+    border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.7; margin-bottom:16px; color:#5d4037;
+  }
+  .rule b{color:var(--org-d);}
+  .card{background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.05);}
+  label{display:block; font-size:13px; font-weight:700; margin:14px 0 5px; color:var(--org-d);}
+  label:first-of-type{margin-top:0;}
+  .req::after{content:" *"; color:#d84315;}
+  input,select,textarea{
+    width:100%; padding:12px; font-size:16px; border:1.5px solid var(--line); border-radius:10px;
+    background:var(--org-ll); color:var(--txt); appearance:none; -webkit-appearance:none;
+  }
+  input:focus,select,textarea:focus{outline:none; border-color:var(--org); background:#fff;}
+  select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='%23ef6c00'><path d='M7 10l5 5 5-5z'/></svg>"); background-repeat:no-repeat; background-position:right 12px center; padding-right:34px;}
+  textarea{min-height:62px; resize:vertical;}
+  .note{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .hot{color:#d84315; font-weight:700;}
+  button{
+    margin-top:22px; width:100%; padding:15px; font-size:17px; font-weight:800; color:#fff;
+    background:linear-gradient(135deg,var(--org),var(--org-d)); border:none; border-radius:12px;
+    box-shadow:0 3px 10px rgba(230,81,0,.3); cursor:pointer; letter-spacing:1px;
+  }
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:.6;}
+  .msg{margin-top:16px; padding:13px; border-radius:10px; font-size:14px; display:none; line-height:1.6;}
+  .msg.ok{background:#e8f5e9; color:var(--ok); border:1px solid #a5d6a7; display:block;}
+  .msg.ng{background:#ffebee; color:#c62828; border:1px solid #ef9a9a; display:block;}
+  .loading{text-align:center; color:var(--muted); font-size:13px; padding:20px;}
+  footer{text-align:center; font-size:11px; color:var(--muted); margin-top:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>直行・直帰 事前入力</h1>
+    <div class="sub">【5等級以上対象】予定・履歴リスト</div>
+  </header>
+
+  <div class="rule">
+    <b>運用ルール</b><br>
+    ① 基本は<b>前日まで</b>に事前入力（当日発生は特例）。<br>
+    ② 総務経理課が原則、毎日確認します。必要性に疑義がある場合は関係者に確認することがあります。
+  </div>
+
+  <div id="loading" class="loading">読み込み中…</div>
+
+  <div class="card" id="form" style="display:none;">
+    <label class="req" for="f_date">月日</label>
+    <input type="date" id="f_date">
+
+    <label class="req" for="f_dept">部門名</label>
+    <select id="f_dept"></select>
+
+    <label class="req" for="f_name">氏名</label>
+    <input type="text" id="f_name" placeholder="例：長谷川">
+    <div class="note">前回の氏名を記憶します</div>
+
+    <label class="req" for="f_type">直行・直帰</label>
+    <select id="f_type"></select>
+
+    <label for="f_visit">訪問先</label>
+    <input type="text" id="f_visit" placeholder="例：株式会社●●●●様">
+
+    <label for="f_report">報告先</label>
+    <select id="f_report"></select>
+
+    <label for="f_note">備考</label>
+    <textarea id="f_note" placeholder="例：午前は有給 / 朝一から移動・打合のため"></textarea>
+
+    <button id="btn" onclick="submitForm()">この内容で登録する</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <footer>デジタル総合印刷　総務経理課</footer>
+</div>
+
+<script>
+  var API = "https://script.google.com/macros/s/AKfycbwq_J7CU-SedhdJG6mnZb_09v8zVH-aL4nAvDS0DDiFzUZ0SrVrMJWyLKfT78Ij5kZI/exec";
+
+  function lsGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+  function fill(sel, arr, placeholder){
+    var s = document.getElementById(sel);
+    s.innerHTML = "";
+    var o0 = document.createElement("option");
+    o0.value = ""; o0.textContent = placeholder || "選択してください";
+    s.appendChild(o0);
+    for(var i=0;i<arr.length;i++){
+      var o = document.createElement("option");
+      o.value = arr[i]; o.textContent = arr[i];
+      s.appendChild(o);
+    }
+  }
+
+  function todayStr(){
+    var d = new Date();
+    var m = (d.getMonth()+1); var day = d.getDate();
+    return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(day<10?"0":"")+day;
+  }
+
+  function loadRoster(){
+    fetch(API + "?action=roster")
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        fill("f_dept", j.depts||[], "部門を選択");
+        fill("f_type", j.types||[], "区分を選択");
+        fill("f_report", j.mgrs||[], "報告先を選択");
+        document.getElementById("f_date").value = todayStr();
+        var rd=lsGet("ck_dept"); if(rd) document.getElementById("f_dept").value=rd;
+        var rn=lsGet("ck_name"); if(rn) document.getElementById("f_name").value=rn;
+        var rr=lsGet("ck_report"); if(rr) document.getElementById("f_report").value=rr;
+        document.getElementById("loading").style.display="none";
+        document.getElementById("form").style.display="block";
+      })
+      .catch(function(e){
+        document.getElementById("loading").innerHTML="読み込みに失敗しました。通信環境を確認して再読み込みしてください。";
+      });
+  }
+
+  function submitForm(){
+    var date=document.getElementById("f_date").value;
+    var dept=document.getElementById("f_dept").value;
+    var name=document.getElementById("f_name").value;
+    var type=document.getElementById("f_type").value;
+    var visit=document.getElementById("f_visit").value;
+    var report=document.getElementById("f_report").value;
+    var note=document.getElementById("f_note").value;
+    var msg=document.getElementById("msg");
+    if(!date||!dept||!name||!type){
+      msg.className="msg ng"; msg.textContent="月日・部門名・氏名・直行直帰の区分は必須です。";
+      return;
+    }
+    lsSet("ck_dept",dept); lsSet("ck_name",name); lsSet("ck_report",report);
+    var btn=document.getElementById("btn");
+    btn.disabled=true; btn.textContent="送信中…";
+    msg.className="msg"; msg.style.display="none";
+    fetch(API, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify({date:date,dept:dept,name:name,type:type,visit:visit,report:report,note:note})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      btn.disabled=false; btn.textContent="この内容で登録する";
+      if(j.ok){
+        msg.className="msg ok";
+        msg.innerHTML="✅ 登録しました（"+date+"　"+name+"さん）。<br>続けて入力できます。";
+        document.getElementById("f_visit").value="";
+        document.getElementById("f_note").value="";
+      }else{
+        msg.className="msg ng"; msg.textContent="登録に失敗しました："+(j.error||"不明なエラー");
+      }
+    })
+    .catch(function(e){
+      btn.disabled=false; btn.textContent="この内容で登録する";
+      msg.className="msg ng"; msg.textContent="通信エラーが発生しました。もう一度お試しください。";
+    });
+  }
+
+  loadRoster();
+</script>
+</body>
+</html>
